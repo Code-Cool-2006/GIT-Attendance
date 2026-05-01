@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, TextInput, TouchableOpacity, View, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { StyleSheet, TextInput, TouchableOpacity, View, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
@@ -8,6 +8,8 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+
+const LOGO = require('@/assets/images/GIT_Connect_admin_logo.png');
 
 export default function LoginScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -56,8 +58,8 @@ export default function LoginScreen() {
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <View style={[styles.logoContainer, { backgroundColor: themeColors.primary }]}>
-            <Ionicons name="school" size={40} color={colorScheme === 'dark' ? themeColors.background : '#FFFFFF'} />
+          <View style={styles.logoContainer}>
+            <Image source={LOGO} style={styles.logoImage} resizeMode="contain" />
           </View>
           <ThemedText style={[styles.title, { fontFamily: Fonts.bold }]}>Academic Admin Hub</ThemedText>
         </View>
@@ -178,17 +180,17 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   logoContainer: {
-    width: 80,
-    height: 80,
+    width: 100,
+    height: 100,
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 5,
+  },
+  logoImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 20,
   },
   title: {
     fontSize: 24,
