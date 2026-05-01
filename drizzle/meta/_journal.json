@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1777570876291,
+      "tag": "0000_lyrical_slapstick",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777614984826,
+      "tag": "0001_lively_boomer",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777619046808,
+      "tag": "0002_legal_spectrum",
+      "breakpoints": true
+    }
+  ]
+}

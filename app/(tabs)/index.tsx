@@ -1,98 +1,301 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
+import { useFocusEffect } from '@react-navigation/native';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { Colors, Fonts } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
-export default function HomeScreen() {
+const { width } = Dimensions.get('window');
+
+export default function DashboardScreen() {
+  const colorScheme = useColorScheme() ?? 'light';
+  const themeColors = Colors[colorScheme];
+  
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any>({
+    students: '0',
+    teachers: '0',
+    divisions: '0',
+    attendanceToday: '0%',
+    activities: []
+  });
+
+  const fetchStats = async () => {
+    try {
+      const response = await fetch('/api/stats');
+      const stats = await response.json();
+      if (response.ok) {
+        setData({
+          students: stats.students.toString(),
+          teachers: stats.teachers.toString(),
+          divisions: stats.divisions.toString(),
+          attendanceToday: stats.attendanceToday,
+          activities: stats.activities || []
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchStats();
+    }, [])
+  );
+
+  const stats = [
+    { label: 'Total Students', value: data.students, icon: 'people', color: themeColors.tertiary },
+    { label: 'Total Teachers', value: data.teachers, icon: 'school', color: '#10B981' },
+    { label: 'Active Divisions', value: data.divisions, icon: 'layers', color: '#F59E0B' },
+    { label: 'Today\'s Attendance', value: data.attendanceToday, icon: 'checkmark-circle', color: themeColors.primary },
+  ];
+
+  const recentActivities = data.activities.length > 0 ? data.activities : [
+    { title: 'System Initialized', time: 'Just now', type: 'system' },
+    { title: 'No recent activity found', time: '', type: 'info' },
+  ];
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <ThemedView style={[styles.container, { backgroundColor: themeColors.background }]}>
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+      
+      {/* Header */}
+      <View style={[styles.header, { backgroundColor: themeColors.surface, borderBottomColor: themeColors.border }]}>
+        <View>
+          <ThemedText style={[styles.greeting, { color: themeColors.secondary }]}>Welcome back,</ThemedText>
+          <ThemedText style={[styles.adminName, { fontFamily: Fonts.bold }]}>Administrator</ThemedText>
+        </View>
+        <TouchableOpacity style={[styles.profileButton, { backgroundColor: themeColors.background }]}>
+          <Ionicons name="notifications-outline" size={24} color={themeColors.text} />
+        </TouchableOpacity>
+      </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Stats Grid */}
+        <View style={styles.statsGrid}>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={themeColors.primary} />
+            </View>
+          ) : (
+            stats.map((stat, index) => (
+              <View 
+                key={index} 
+                style={[
+                  styles.statCard, 
+                  { backgroundColor: themeColors.surface, borderColor: themeColors.border }
+                ]}
+              >
+                <View style={[styles.statIconContainer, { backgroundColor: stat.color + '15' }]}>
+                  <Ionicons name={stat.icon as any} size={24} color={stat.color} />
+                </View>
+                <ThemedText style={[styles.statValue, { fontFamily: Fonts.bold }]}>{stat.value}</ThemedText>
+                <ThemedText style={[styles.statLabel, { color: themeColors.secondary }]}>{stat.label}</ThemedText>
+              </View>
+            ))
+          )}
+        </View>
+
+        {/* Quick Actions */}
+        <ThemedText style={[styles.sectionTitle, { fontFamily: Fonts.semiBold }]}>Quick Actions</ThemedText>
+        <View style={styles.actionGrid}>
+          <TouchableOpacity style={[styles.actionButton, { backgroundColor: themeColors.primary }]}>
+            <Ionicons name="add-circle" size={20} color={colorScheme === 'dark' ? themeColors.background : '#FFFFFF'} />
+            <ThemedText style={[styles.actionButtonText, { color: colorScheme === 'dark' ? themeColors.background : '#FFFFFF', fontFamily: Fonts.semiBold }]}>
+              Mark Attendance
+            </ThemedText>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.actionButtonSecondary, { borderColor: themeColors.primary }]}>
+            <ThemedText style={[styles.actionButtonTextSecondary, { color: themeColors.primary, fontFamily: Fonts.semiBold }]}>
+              Generate Report
+            </ThemedText>
+          </TouchableOpacity>
+        </View>
+
+        {/* Recent Activity */}
+        <View style={styles.sectionHeader}>
+          <ThemedText style={[styles.sectionTitle, { fontFamily: Fonts.semiBold }]}>Recent Activity</ThemedText>
+          <TouchableOpacity>
+            <ThemedText style={[styles.seeAll, { color: themeColors.tertiary }]}>See All</ThemedText>
+          </TouchableOpacity>
+        </View>
+
+        <View style={[styles.activityList, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
+          {recentActivities.map((activity, index) => {
+            let iconName: any = 'flash-outline';
+            let iconColor = themeColors.tertiary;
+
+            if (activity.type === 'student') { iconName = 'person-add-outline'; iconColor = themeColors.tertiary; }
+            else if (activity.type === 'teacher') { iconName = 'school-outline'; iconColor = '#10B981'; }
+            else if (activity.type === 'subject') { iconName = 'book-outline'; iconColor = '#F59E0B'; }
+            else if (activity.type === 'system') { iconName = 'settings-outline'; iconColor = themeColors.primary; }
+
+            return (
+              <View 
+                key={index} 
+                style={[
+                  styles.activityItem, 
+                  { borderBottomColor: index === recentActivities.length - 1 ? 'transparent' : themeColors.border }
+                ]}
+              >
+                <View style={[styles.activityIconSmall, { backgroundColor: iconColor + '15' }]}>
+                  <Ionicons name={iconName} size={14} color={iconColor} />
+                </View>
+                <View style={styles.activityInfo}>
+                  <ThemedText style={[styles.activityTitle, { fontFamily: Fonts.semiBold }]}>{activity.title}</ThemedText>
+                  <ThemedText style={[styles.activityTime, { color: themeColors.secondary }]}>{activity.time}</ThemedText>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={themeColors.secondary} />
+              </View>
+            );
+          })}
+        </View>
+      </ScrollView>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+  },
+  header: {
+    paddingTop: 60,
+    paddingHorizontal: 24,
+    paddingBottom: 20,
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+  },
+  greeting: {
+    fontSize: 14,
+  },
+  adminName: {
+    fontSize: 20,
+  },
+  profileButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scrollContent: {
+    padding: 24,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 32,
+  },
+  statCard: {
+    width: (width - 64) / 2,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  statIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  statValue: {
+    fontSize: 22,
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    marginBottom: 16,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  seeAll: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  actionGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 32,
+  },
+  actionButton: {
+    flex: 1,
+    height: 50,
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  actionButtonSecondary: {
+    flex: 1,
+    height: 50,
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  actionButtonText: {
+    fontSize: 14,
+  },
+  actionButtonTextSecondary: {
+    fontSize: 14,
+  },
+  activityList: {
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+  },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+  },
+  activityInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  activityIconSmall: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  activityTitle: {
+    fontSize: 14,
+    marginBottom: 2,
+  },
+  activityTime: {
+    fontSize: 11,
+  },
+  loadingContainer: {
+    width: '100%',
+    height: 150,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
