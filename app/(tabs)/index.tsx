@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect } from '@react-navigation/native';
@@ -8,6 +8,8 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+
+const LOGO = require('@/assets/images/GIT_Connect_admin_logo.png');
 
 const { width } = Dimensions.get('window');
 
@@ -68,9 +70,12 @@ export default function DashboardScreen() {
       
       {/* Header */}
       <View style={[styles.header, { backgroundColor: themeColors.surface, borderBottomColor: themeColors.border }]}>
-        <View>
-          <ThemedText style={[styles.greeting, { color: themeColors.secondary }]}>Welcome back,</ThemedText>
-          <ThemedText style={[styles.adminName, { fontFamily: Fonts.bold }]}>Administrator</ThemedText>
+        <View style={styles.headerInfo}>
+          <Image source={LOGO} style={styles.headerLogo} resizeMode="contain" />
+          <View>
+            <ThemedText style={[styles.greeting, { color: themeColors.secondary }]}>Welcome back,</ThemedText>
+            <ThemedText style={[styles.adminName, { fontFamily: Fonts.bold }]}>Administrator</ThemedText>
+          </View>
         </View>
         <TouchableOpacity style={[styles.profileButton, { backgroundColor: themeColors.background }]}>
           <Ionicons name="notifications-outline" size={24} color={themeColors.text} />
@@ -128,7 +133,7 @@ export default function DashboardScreen() {
         </View>
 
         <View style={[styles.activityList, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
-          {recentActivities.map((activity, index) => {
+          {recentActivities.map((activity: any, index: number) => {
             let iconName: any = 'flash-outline';
             let iconColor = themeColors.tertiary;
 
@@ -179,7 +184,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   adminName: {
-    fontSize: 20,
+    fontSize: 18,
+  },
+  headerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerLogo: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
   },
   profileButton: {
     width: 44,
