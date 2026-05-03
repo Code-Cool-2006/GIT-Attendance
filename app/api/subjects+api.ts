@@ -40,12 +40,21 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Name, Code, and Division are required' }, { status: 400 });
     }
 
-    const [newSubject] = await db.insert(subjects).values({
-      name,
-      code,
-      divisionId,
-      teacherId,
-    }).returning();
+    const [newSubject] = await db.insert(subjects)
+      .values({
+        name,
+        code,
+        divisionId,
+        teacherId,
+      })
+      .onConflictDoUpdate({
+        target: [subjects.code, subjects.divisionId],
+        set: {
+          name,
+          teacherId,
+        }
+      })
+      .returning();
 
     return Response.json(newSubject);
   } catch (error: any) {

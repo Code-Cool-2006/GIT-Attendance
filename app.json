@@ -8,14 +8,20 @@
     "scheme": "gitconnectadmin",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rishabchavadar.GITConnectAdmin",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/GIT_Connect_admin_logo.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.rishabchavadar.GITConnectAdmin",
+      "usesCleartextTraffic": true
     },
     "web": {
       "output": "server",
@@ -39,6 +45,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "befba2da-dbac-415e-87d9-5f081d6e907c"
+      }
     }
   }
 }

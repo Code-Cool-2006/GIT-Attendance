@@ -8,6 +8,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { apiClient } from '@/constants/api';
 
 const { width } = Dimensions.get('window');
 
@@ -20,7 +21,7 @@ export default function ReportsScreen() {
 
   const fetchReports = async () => {
     try {
-      const response = await fetch('/api/reports');
+      const response = await apiClient('/api/reports');
       const data = await response.json();
       if (response.ok) {
         setReports(data.map((r: any, index: number) => ({

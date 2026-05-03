@@ -9,6 +9,7 @@ import { ThemedView } from '@/components/themed-view';
 import { AdminModal } from '@/components/admin-modal';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { apiClient } from '@/constants/api';
 
 export default function TeachersScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -23,7 +24,7 @@ export default function TeachersScreen() {
 
   const fetchTeachers = async () => {
     try {
-      const response = await fetch('/api/teachers');
+      const response = await apiClient('/api/teachers');
       const data = await response.json();
       if (response.ok) {
         // Map API data to UI format if needed
@@ -96,9 +97,8 @@ export default function TeachersScreen() {
         department: form.dept
       };
 
-      const response = await fetch('/api/teachers', {
+      const response = await apiClient('/api/teachers', {
         method,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 
@@ -127,7 +127,7 @@ export default function TeachersScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const response = await fetch(`/api/teachers?id=${id}`, { method: 'DELETE' });
+              const response = await apiClient(`/api/teachers?id=${id}`, { method: 'DELETE' });
               if (response.ok) {
                 fetchTeachers();
               }

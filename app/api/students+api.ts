@@ -40,21 +40,33 @@ export async function POST(request: Request) {
 
     console.log(`Creating student ${name} with division ${divisionId}`);
     
-    const [student] = await db.insert(students).values({
-      name,
-      rollNumber,
-      email: email && email.trim() !== '' ? email : null,
-      phone: phone && phone.trim() !== '' ? phone : null,
-      department,
-      semester: semester ? parseInt(semester) : null,
-    }).returning();
+    const [student] = await db.insert(students)
+      .values({
+        name,
+        rollNumber,
+        email: email && email.trim() !== '' ? email : null,
+        phone: phone && phone.trim() !== '' ? phone : null,
+        department,
+        semester: semester ? parseInt(semester) : null,
+      })
+      .onConflictDoUpdate({
+        target: students.rollNumber,
+        set: {
+          name,
+          email: email && email.trim() !== '' ? email : null,
+          phone: phone && phone.trim() !== '' ? phone : null,
+          department,
+          semester: semester ? parseInt(semester) : null,
+        }
+      })
+      .returning();
 
     if (divisionId && divisionId !== '') {
       console.log(`Assigning new student ${student.id} to division ${divisionId}`);
       await db.insert(divisionStudents).values({
         studentId: student.id,
         divisionId: divisionId,
-      });
+      }).onConflictDoNothing();
     }
 
     return Response.json(student);

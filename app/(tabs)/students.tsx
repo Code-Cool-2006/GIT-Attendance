@@ -10,6 +10,7 @@ import { ThemedView } from '@/components/themed-view';
 import { AdminModal } from '@/components/admin-modal';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { apiClient } from '@/constants/api';
 
 export default function StudentsScreen() {
   const params = useLocalSearchParams();
@@ -27,7 +28,7 @@ export default function StudentsScreen() {
   const fetchAssignedSubjects = async (divisionId: string) => {
     setSubjectsLoading(true);
     try {
-      const res = await fetch(`/api/subjects?divisionId=${divisionId}`);
+      const res = await apiClient(`/api/subjects?divisionId=${divisionId}`);
       if (res.ok) {
         const data = await res.json();
         setAssignedSubjects(data);
@@ -60,8 +61,8 @@ export default function StudentsScreen() {
   const fetchInitialData = async () => {
     try {
       const [studentsRes, divisionsRes] = await Promise.all([
-        fetch('/api/students'),
-        fetch('/api/divisions')
+        apiClient('/api/students'),
+        apiClient('/api/divisions')
       ]);
       
       const studentsData = await studentsRes.json();
@@ -145,9 +146,8 @@ export default function StudentsScreen() {
         divisionId: form.divisionId,
       };
 
-      const response = await fetch('/api/students', {
+      const response = await apiClient('/api/students', {
         method,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 
@@ -176,7 +176,7 @@ export default function StudentsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const response = await fetch(`/api/students?id=${id}`, { method: 'DELETE' });
+              const response = await apiClient(`/api/students?id=${id}`, { method: 'DELETE' });
               if (response.ok) {
                 fetchStudents();
               }

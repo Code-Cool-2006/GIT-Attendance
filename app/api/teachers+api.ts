@@ -34,7 +34,17 @@ export async function POST(request: Request) {
     
     console.log('Inserting teacher with values:', JSON.stringify(values));
 
-    const [newTeacher] = await db.insert(teachers).values(values).returning();
+    const [newTeacher] = await db.insert(teachers)
+      .values(values)
+      .onConflictDoUpdate({
+        target: teachers.employeeId,
+        set: {
+          name,
+          email: values.email,
+          department,
+        }
+      })
+      .returning();
 
     console.log('Successfully created teacher:', newTeacher.id);
     return Response.json(newTeacher);

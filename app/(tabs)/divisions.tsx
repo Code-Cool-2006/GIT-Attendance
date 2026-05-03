@@ -10,6 +10,7 @@ import { ThemedView } from '@/components/themed-view';
 import { AdminModal } from '@/components/admin-modal';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { apiClient } from '@/constants/api';
 
 export default function DivisionsScreen() {
   const router = useRouter();
@@ -22,14 +23,14 @@ export default function DivisionsScreen() {
 
   const fetchInitialData = async () => {
     try {
-      const statsRes = await fetch('/api/stats');
+      const statsRes = await apiClient('/api/stats');
       const stats = await statsRes.json();
       
       if (stats.activeYearId) {
         setActiveYearId(stats.activeYearId);
       }
       
-      const res = await fetch('/api/divisions');
+      const res = await apiClient('/api/divisions');
       const data = await res.json();
       if (res.ok) {
         setDivisions(data);
@@ -88,9 +89,8 @@ export default function DivisionsScreen() {
         department: form.dept, // Ensure consistent field name
       };
 
-      const response = await fetch('/api/divisions', {
+      const response = await apiClient('/api/divisions', {
         method,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 
@@ -119,7 +119,7 @@ export default function DivisionsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const response = await fetch(`/api/divisions?id=${id}`, { method: 'DELETE' });
+              const response = await apiClient(`/api/divisions?id=${id}`, { method: 'DELETE' });
               if (response.ok) {
                 fetchInitialData();
               }

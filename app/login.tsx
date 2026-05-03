@@ -8,6 +8,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { apiClient } from '@/constants/api';
 
 const LOGO = require('@/assets/images/GIT_Connect_admin_logo.png');
 
@@ -30,9 +31,8 @@ export default function LoginScreen() {
     setError(null);
 
     try {
-      const response = await fetch('/api/login', {
+      const response = await apiClient('/api/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
 

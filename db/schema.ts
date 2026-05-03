@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, varchar, integer, timestamp, boolean, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, varchar, integer, timestamp, boolean, primaryKey, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const academicYears = pgTable('academic_years', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -47,11 +47,13 @@ export const teachers = pgTable('teachers', {
 export const subjects = pgTable('subjects', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 255 }).notNull(),
-  code: varchar('code', { length: 20 }).notNull().unique(),
+  code: varchar('code', { length: 20 }).notNull(),
   divisionId: uuid('division_id').references(() => divisions.id).notNull(),
   teacherId: uuid('teacher_id').references(() => teachers.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (t) => ({
+  codeDivisionIdx: uniqueIndex('subjects_code_division_idx').on(t.code, t.divisionId),
+}));
 
 export const classSchedules = pgTable('class_schedules', {
   id: uuid('id').defaultRandom().primaryKey(),

@@ -8,6 +8,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { apiClient } from '@/constants/api';
 
 const LOGO = require('@/assets/images/GIT_Connect_admin_logo.png');
 
@@ -28,7 +29,7 @@ export default function DashboardScreen() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('/api/stats');
+      const response = await apiClient('/api/stats');
       const stats = await response.json();
       if (response.ok) {
         setData({

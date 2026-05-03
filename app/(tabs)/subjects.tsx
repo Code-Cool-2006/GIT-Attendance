@@ -9,6 +9,7 @@ import { ThemedView } from '@/components/themed-view';
 import { AdminModal } from '@/components/admin-modal';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { apiClient } from '@/constants/api';
 
 export default function SubjectsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -23,9 +24,9 @@ export default function SubjectsScreen() {
   const fetchInitialData = async () => {
     try {
       const [subsRes, divsRes, teachRes] = await Promise.all([
-        fetch('/api/subjects'),
-        fetch('/api/divisions'),
-        fetch('/api/teachers')
+        apiClient('/api/subjects'),
+        apiClient('/api/divisions'),
+        apiClient('/api/teachers')
       ]);
       
       const subsData = await subsRes.json();
@@ -100,9 +101,8 @@ export default function SubjectsScreen() {
         teacherId: form.teacherId || null,
       };
 
-      const response = await fetch('/api/subjects', {
+      const response = await apiClient('/api/subjects', {
         method,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
 
@@ -124,7 +124,7 @@ export default function SubjectsScreen() {
     Alert.alert('Delete Subject', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
-          await fetch(`/api/subjects?id=${id}`, { method: 'DELETE' });
+          await apiClient(`/api/subjects?id=${id}`, { method: 'DELETE' });
           fetchInitialData();
       }}
     ]);
@@ -179,7 +179,7 @@ export default function SubjectsScreen() {
 
   const fetchSchedules = async (subjectId: string) => {
     try {
-      const res = await fetch(`/api/schedules?subjectId=${subjectId}`);
+      const res = await apiClient(`/api/schedules?subjectId=${subjectId}`);
       if (res.ok) {
         const data = await res.json();
         setCurrentSubjectSchedules(data);
@@ -198,9 +198,8 @@ export default function SubjectsScreen() {
   const handleAddSchedule = async () => {
     if (!scheduleForm.startTime || !scheduleForm.endTime) return;
     try {
-      const res = await fetch('/api/schedules', {
+      const res = await apiClient('/api/schedules', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           subjectId: selectedSubject.id,
           ...scheduleForm
@@ -218,7 +217,7 @@ export default function SubjectsScreen() {
 
   const handleDeleteSchedule = async (id: string) => {
     try {
-      await fetch(`/api/schedules?id=${id}`, { method: 'DELETE' });
+      await apiClient(`/api/schedules?id=${id}`, { method: 'DELETE' });
       fetchSchedules(selectedSubject.id);
     } catch (error) {
       Alert.alert('Error', 'Failed to delete schedule');

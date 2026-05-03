@@ -1,6 +1,6 @@
 import { ExpoRequest, ExpoResponse } from 'expo-router/server';
-import { db } from '../../../db';
-import { academicYears } from '../../../db/schema';
+import { db } from '@/db/index';
+import { academicYears } from '@/db/schema';
 
 export async function GET(request: ExpoRequest) {
   try {
