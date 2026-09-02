@@ -1,6 +1,6 @@
 import { db } from '@/db/index';
 import { attendance } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 
 export async function GET(request: Request, context: { params?: { sessionId?: string } }) {
   try {
@@ -66,8 +66,13 @@ export async function PUT(request: Request, context: { params?: { sessionId?: st
       if (studentId && r.status) {
         await db
           .update(attendance)
-          .set({ status: r.status, remarks: r.remarks || null })
-          .where(eq(attendance.scheduleId, sessionId));
+          .set({ status: r.status, remarks: r.remarks || '' })
+          .where(
+            and(
+              eq(attendance.scheduleId, sessionId),
+              eq(attendance.studentId, studentId)
+            )
+          );
       }
     }
 
