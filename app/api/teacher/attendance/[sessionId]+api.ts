@@ -2,11 +2,21 @@ import { db } from '@/db/index';
 import { attendance } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 
+// Teacher app sends sessionId as `scheduleUUID_YYYY-MM-DD`; strip date suffix to get real schedule UUID
+function parseScheduleId(raw: string): string {
+  const idx = raw.lastIndexOf('_');
+  // if the part after _ looks like a date, strip it
+  if (idx > 0 && /^\d{4}-\d{2}-\d{2}$/.test(raw.slice(idx + 1))) {
+    return raw.slice(0, idx);
+  }
+  return raw;
+}
+
 export async function GET(request: Request, context: { params?: { sessionId?: string } }) {
   try {
     const urlParts = request.url.split('?')[0].split('/');
     const sessionIdFromUrl = urlParts[urlParts.length - 1];
-    const sessionId = context?.params?.sessionId || sessionIdFromUrl;
+    const sessionId = parseScheduleId(context?.params?.sessionId || sessionIdFromUrl);
 
     if (!sessionId) {
       return Response.json({ error: 'Missing sessionId' }, { status: 400 });
@@ -51,7 +61,7 @@ export async function PUT(request: Request, context: { params?: { sessionId?: st
   try {
     const urlParts = request.url.split('?')[0].split('/');
     const sessionIdFromUrl = urlParts[urlParts.length - 1];
-    const sessionId = context?.params?.sessionId || sessionIdFromUrl;
+    const sessionId = parseScheduleId(context?.params?.sessionId || sessionIdFromUrl);
 
     const body = await request.json();
     const { records } = body;
