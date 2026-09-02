@@ -87,6 +87,8 @@ export async function DELETE(request: Request) {
       return Response.json({ error: 'ID is required' }, { status: 400 });
     }
 
+    await db.delete(divisionStudents).where(eq(divisionStudents.divisionId, id));
+    await db.delete(subjects).where(eq(subjects.divisionId, id));
     await db.delete(divisions).where(eq(divisions.id, id));
     return Response.json({ success: true });
   } catch (error: any) {

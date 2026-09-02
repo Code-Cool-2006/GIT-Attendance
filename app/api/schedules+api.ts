@@ -21,7 +21,8 @@ export async function GET(request: Request) {
       })
       .from(classSchedules)
       .leftJoin(subjects, eq(classSchedules.subjectId, subjects.id))
-      .leftJoin(divisions, eq(subjects.divisionId, divisions.id));
+      .leftJoin(divisions, eq(subjects.divisionId, divisions.id))
+      .$dynamic();
 
     if (subjectId) {
       query = query.where(eq(classSchedules.subjectId, subjectId));

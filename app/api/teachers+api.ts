@@ -19,6 +19,34 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     console.log('Teachers POST request body:', JSON.stringify(body));
+
+    // Support bulk list insertion if teachersList is provided
+    if (Array.isArray(body.teachersList)) {
+      let insertedCount = 0;
+      const errors: string[] = [];
+      for (const item of body.teachersList) {
+        const { name, employeeId, email, department } = item;
+        if (!name || !employeeId) continue;
+        try {
+          await db.insert(teachers).values({
+            name: name.trim(),
+            employeeId: employeeId.trim(),
+            email: email && email.trim() !== '' ? email.trim() : null,
+            department: department ? department.trim() : 'CSE',
+          });
+          insertedCount++;
+        } catch (err: any) {
+          errors.push(`Failed to insert teacher ${employeeId}: ${err.message}`);
+        }
+      }
+      return Response.json({
+        success: true,
+        insertedCount,
+        totalCount: body.teachersList.length,
+        errors: errors.length > 0 ? errors : undefined,
+      });
+    }
+
     const { name, employeeId, email, department } = body;
 
     if (!name || !employeeId) {
@@ -79,6 +107,7 @@ export async function DELETE(request: Request) {
       return Response.json({ error: 'ID is required' }, { status: 400 });
     }
 
+    await db.update(subjects).set({ teacherId: null }).where(eq(subjects.teacherId, id));
     await db.delete(teachers).where(eq(teachers.id, id));
     return Response.json({ success: true });
   } catch (error: any) {

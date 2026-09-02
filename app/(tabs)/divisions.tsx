@@ -10,6 +10,7 @@ import { ThemedView } from '@/components/themed-view';
 import { AdminModal } from '@/components/admin-modal';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { API_BASE_URL } from '@/constants/Config';
 
 export default function DivisionsScreen() {
   const router = useRouter();
@@ -22,14 +23,14 @@ export default function DivisionsScreen() {
 
   const fetchInitialData = async () => {
     try {
-      const statsRes = await fetch('/api/stats');
+      const statsRes = await fetch(`${API_BASE_URL}/stats`);
       const stats = await statsRes.json();
       
-      if (stats.activeYearId) {
-        setActiveYearId(stats.activeYearId);
+      if (stats.activeYearId || stats.active_year_id) {
+        setActiveYearId(stats.activeYearId || stats.active_year_id);
       }
       
-      const res = await fetch('/api/divisions');
+      const res = await fetch(`${API_BASE_URL}/divisions`);
       const data = await res.json();
       if (res.ok) {
         setDivisions(data);
@@ -88,7 +89,7 @@ export default function DivisionsScreen() {
         department: form.dept, // Ensure consistent field name
       };
 
-      const response = await fetch('/api/divisions', {
+      const response = await fetch(`${API_BASE_URL}/divisions`, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -119,7 +120,7 @@ export default function DivisionsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const response = await fetch(`/api/divisions?id=${id}`, { method: 'DELETE' });
+              const response = await fetch(`${API_BASE_URL}/divisions?id=${id}`, { method: 'DELETE' });
               if (response.ok) {
                 fetchInitialData();
               }
@@ -143,11 +144,11 @@ export default function DivisionsScreen() {
         <View style={styles.metaRow}>
           <View style={styles.metaItem}>
             <Ionicons name="people-outline" size={14} color={themeColors.tertiary} />
-            <ThemedText style={styles.metaText}>{item.students || 0} Students</ThemedText>
+            <ThemedText style={styles.metaText}>{item.student_count || item.students || 0} Students</ThemedText>
           </View>
           <View style={styles.metaItem}>
             <Ionicons name="book-outline" size={14} color={themeColors.tertiary} />
-            <ThemedText style={styles.metaText}>{item.subjects || 0} Subjects</ThemedText>
+            <ThemedText style={styles.metaText}>{item.subject_count || item.subjects || 0} Subjects</ThemedText>
           </View>
           <View style={styles.metaItem}>
             <Ionicons name="calendar-outline" size={14} color={themeColors.tertiary} />

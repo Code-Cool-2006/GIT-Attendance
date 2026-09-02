@@ -10,6 +10,8 @@ import { ThemedView } from '@/components/themed-view';
 import { AdminModal } from '@/components/admin-modal';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { API_BASE_URL } from '@/constants/Config';
+import { addLog } from '@/utils/logger';
 
 export default function StudentsScreen() {
   const params = useLocalSearchParams();
@@ -24,10 +26,16 @@ export default function StudentsScreen() {
   const [loading, setLoading] = useState(true);
   const [subjectsLoading, setSubjectsLoading] = useState(false);
 
+  // Advanced Filtering State
+  const [selectedDivFilter, setSelectedDivFilter] = useState<string>('All');
+  const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>('All');
+  const [selectedSemFilter, setSelectedSemFilter] = useState<string>('All');
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+
   const fetchAssignedSubjects = async (divisionId: string) => {
     setSubjectsLoading(true);
     try {
-      const res = await fetch(`/api/subjects?divisionId=${divisionId}`);
+      const res = await fetch(`${API_BASE_URL}/subjects?divisionId=${divisionId}`);
       if (res.ok) {
         const data = await res.json();
         setAssignedSubjects(data);
@@ -60,8 +68,8 @@ export default function StudentsScreen() {
   const fetchInitialData = async () => {
     try {
       const [studentsRes, divisionsRes] = await Promise.all([
-        fetch('/api/students'),
-        fetch('/api/divisions')
+        fetch(`${API_BASE_URL}/students`),
+        fetch(`${API_BASE_URL}/divisions`)
       ]);
       
       const studentsData = await studentsRes.json();
@@ -71,9 +79,11 @@ export default function StudentsScreen() {
         setStudents(studentsData.map((s: any) => ({
           id: s.id,
           name: s.name,
-          roll: s.rollNumber,
-          div: s.divisionName || 'Unassigned',
-          divisionId: s.divisionId,
+          roll: s.roll_number || s.rollNumber,
+          email: s.email || '',
+          phone: s.phone || '',
+          div: s.division_name || s.divisionName || 'Unassigned',
+          divisionId: s.division_id || s.divisionId,
           status: 'Active'
         })));
       }
@@ -81,8 +91,9 @@ export default function StudentsScreen() {
       if (divisionsRes.ok) {
         setDivisions(divisionsData);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching students data:', error);
+      addLog(`[Students] Initial data fetch error: ${error?.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -109,6 +120,71 @@ export default function StudentsScreen() {
     divisionId: '',
   });
 
+  // State for Bulk CSV Modal
+  const [isBulkModalVisible, setIsBulkModalVisible] = useState(false);
+  const [bulkCsvText, setBulkCsvText] = useState('');
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [bulkDivId, setBulkDivId] = useState('');
+  const [bulkDivName, setBulkDivName] = useState('');
+
+  const handleBulkImport = async () => {
+    if (!bulkCsvText.trim()) {
+      Alert.alert('Empty Input', 'Please paste CSV data before uploading.');
+      return;
+    }
+
+    const lines = bulkCsvText.trim().split('\n');
+    const studentsList: any[] = [];
+
+    lines.forEach((line) => {
+      const delimiter = line.includes('\t') ? '\t' : ',';
+      const parts = line.split(delimiter).map(p => p.trim());
+      if (parts.length >= 2) {
+        // Skip header if line starts with roll or USN
+        if (parts[0].toLowerCase().includes('roll') || parts[1].toLowerCase().includes('name')) {
+          return;
+        }
+        studentsList.push({
+          rollNumber: parts[0],
+          name: parts[1],
+          email: parts[2] || `${parts[0].toLowerCase()}@git.edu`,
+          phone: parts[3] || '',
+          department: parts[4] || 'CSE',
+          semester: parts[5] || '4',
+          divisionId: bulkDivId || undefined,
+        });
+      }
+    });
+
+    if (studentsList.length === 0) {
+      Alert.alert('Invalid Format', 'No valid student rows found. Expected: RollNumber, Name, Email, Phone, Dept, Sem');
+      return;
+    }
+
+    setBulkSubmitting(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/students`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentsList }),
+      });
+
+      const resData = await response.json();
+      if (response.ok) {
+        Alert.alert('Success', `Successfully imported ${resData.insertedCount} out of ${resData.totalCount} students.`);
+        setBulkCsvText('');
+        setIsBulkModalVisible(false);
+        fetchStudents();
+      } else {
+        Alert.alert('Error', resData.error || 'Failed to bulk import students.');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to process bulk import.');
+    } finally {
+      setBulkSubmitting(false);
+    }
+  };
+
   const openModal = (student?: any) => {
     if (student) {
       setEditingStudent(student);
@@ -128,8 +204,18 @@ export default function StudentsScreen() {
   };
 
   const handleSaveStudent = async () => {
-    if (!form.name || !form.roll) {
-      Alert.alert('Missing Fields', 'Please fill in all required fields.');
+    if (!form.name || !form.roll || !form.divisionId) {
+      Alert.alert('Missing Fields', 'Please fill in Name, Roll Number, and Division.');
+      return;
+    }
+
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address.');
+      return;
+    }
+
+    if (form.phone && !/^\+?[\d\s-]{10,}$/.test(form.phone)) {
+      Alert.alert('Invalid Phone', 'Please enter a valid phone number.');
       return;
     }
 
@@ -145,7 +231,7 @@ export default function StudentsScreen() {
         divisionId: form.divisionId,
       };
 
-      const response = await fetch('/api/students', {
+      const response = await fetch(`${API_BASE_URL}/students`, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -157,9 +243,11 @@ export default function StudentsScreen() {
       } else {
         const error = await response.json();
         Alert.alert('Error', error.error || 'Failed to save student');
+        addLog(`[Students] Failed to save student. Status: ${response.status}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       Alert.alert('Error', 'An error occurred. Please try again.');
+      addLog(`[Students] Save error: ${error?.message || 'Unknown error'}`);
     } finally {
       setSubmitting(false);
     }
@@ -176,7 +264,7 @@ export default function StudentsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const response = await fetch(`/api/students?id=${id}`, { method: 'DELETE' });
+              const response = await fetch(`${API_BASE_URL}/students?id=${id}`, { method: 'DELETE' });
               if (response.ok) {
                 fetchStudents();
               }
@@ -192,9 +280,13 @@ export default function StudentsScreen() {
   const filteredStudents = students.filter(s => {
     const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) || 
                          s.roll.toLowerCase().includes(search.toLowerCase());
-    const matchesDivision = activeFilter ? s.divisionId === activeFilter.id : true;
-    return matchesSearch && matchesDivision;
+    const matchesDivision = selectedDivFilter !== 'All' ? s.divisionId === selectedDivFilter : (activeFilter ? s.divisionId === activeFilter.id : true);
+    const matchesDept = selectedDeptFilter !== 'All' ? (s.department || '').toLowerCase() === selectedDeptFilter.toLowerCase() : true;
+    const matchesSem = selectedSemFilter !== 'All' ? String(s.semester || '') === selectedSemFilter : true;
+    return matchesSearch && matchesDivision && matchesDept && matchesSem;
   });
+
+  const activeFilterCount = (selectedDivFilter !== 'All' ? 1 : 0) + (selectedDeptFilter !== 'All' ? 1 : 0) + (selectedSemFilter !== 'All' ? 1 : 0) + (activeFilter ? 1 : 0);
 
   const renderStudentItem = ({ item }: { item: typeof students[0] }) => (
     <View style={[styles.item, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
@@ -224,37 +316,81 @@ export default function StudentsScreen() {
           <ThemedText style={[styles.title, { fontFamily: Fonts.bold }]}>Student Directory</ThemedText>
           <TouchableOpacity 
             style={[styles.bulkButton, { borderColor: themeColors.tertiary }]}
-            onPress={() => Alert.alert('Bulk Assign', 'Feature coming soon: CSV upload and batch division assignment.')}
+            onPress={() => setIsBulkModalVisible(true)}
           >
             <Ionicons name="cloud-upload-outline" size={16} color={themeColors.tertiary} />
-            <ThemedText style={[styles.bulkText, { color: themeColors.tertiary, fontFamily: Fonts.semiBold }]}>Bulk</ThemedText>
+            <ThemedText style={[styles.bulkText, { color: themeColors.tertiary, fontFamily: Fonts.semiBold }]}>Bulk Import</ThemedText>
           </TouchableOpacity>
         </View>
-        <View style={[styles.searchBar, { backgroundColor: themeColors.background, borderColor: themeColors.border }]}>
-          <Ionicons name="search" size={18} color={themeColors.secondary} />
-          <TextInput 
-            placeholder="Search students or roll numbers..." 
-            style={{ flex: 1, marginLeft: 8, fontFamily: Fonts.sans, color: themeColors.text }} 
-            value={search}
-            onChangeText={setSearch}
-            placeholderTextColor={themeColors.secondary}
-          />
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={[styles.searchBar, { flex: 1, backgroundColor: themeColors.background, borderColor: themeColors.border }]}>
+            <Ionicons name="search" size={18} color={themeColors.secondary} />
+            <TextInput 
+              placeholder="Search students or roll numbers..." 
+              style={{ flex: 1, marginLeft: 8, fontFamily: Fonts.sans, color: themeColors.text }} 
+              value={search}
+              onChangeText={setSearch}
+              placeholderTextColor={themeColors.secondary}
+            />
+          </View>
+          <TouchableOpacity 
+            style={[
+              styles.filterChipButton, 
+              { 
+                backgroundColor: activeFilterCount > 0 ? themeColors.primary : themeColors.background, 
+                borderColor: activeFilterCount > 0 ? themeColors.primary : themeColors.border 
+              }
+            ]}
+            onPress={() => setIsFilterModalOpen(true)}
+          >
+            <Ionicons name="funnel-outline" size={18} color={activeFilterCount > 0 ? (colorScheme === 'dark' ? themeColors.background : '#FFFFFF') : themeColors.text} />
+            {activeFilterCount > 0 && (
+              <View style={[styles.filterBadge, { backgroundColor: colorScheme === 'dark' ? themeColors.background : '#FFFFFF' }]}>
+                <ThemedText style={{ fontSize: 11, fontFamily: Fonts.bold, color: themeColors.primary }}>{activeFilterCount}</ThemedText>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
 
-        {activeFilter && (
-          <View style={styles.filterContainer}>
-            <View style={[styles.filterChip, { backgroundColor: themeColors.primary + '15', borderColor: themeColors.primary }]}>
-              <ThemedText style={[styles.filterText, { color: themeColors.primary, fontFamily: Fonts.semiBold }]}>
-                Division: {activeFilter.name}
-              </ThemedText>
-              <TouchableOpacity onPress={() => { setActiveFilter(null); setAssignedSubjects([]); }} style={styles.filterClose}>
-                <Ionicons name="close-circle" size={16} color={themeColors.primary} />
-              </TouchableOpacity>
-            </View>
-            <ThemedText style={[styles.resultsText, { color: themeColors.secondary }]}>
-              {filteredStudents.length} results
-            </ThemedText>
-          </View>
+        {/* Filter Chips Bar */}
+        {(activeFilterCount > 0 || activeFilter) && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+            {activeFilter && (
+              <View style={[styles.filterChip, { backgroundColor: themeColors.primary + '15', borderColor: themeColors.primary }]}>
+                <ThemedText style={[styles.filterText, { color: themeColors.primary, fontFamily: Fonts.semiBold }]}>Div: {activeFilter.name}</ThemedText>
+                <TouchableOpacity onPress={() => { setActiveFilter(null); setAssignedSubjects([]); }}>
+                  <Ionicons name="close-circle" size={16} color={themeColors.primary} />
+                </TouchableOpacity>
+              </View>
+            )}
+            {selectedDivFilter !== 'All' && (
+              <View style={[styles.filterChip, { backgroundColor: themeColors.tertiary + '15', borderColor: themeColors.tertiary }]}>
+                <ThemedText style={[styles.filterText, { color: themeColors.tertiary, fontFamily: Fonts.semiBold }]}>Div: {divisions.find(d => d.id === selectedDivFilter)?.name || 'Selected'}</ThemedText>
+                <TouchableOpacity onPress={() => setSelectedDivFilter('All')}>
+                  <Ionicons name="close-circle" size={16} color={themeColors.tertiary} />
+                </TouchableOpacity>
+              </View>
+            )}
+            {selectedDeptFilter !== 'All' && (
+              <View style={[styles.filterChip, { backgroundColor: '#10B98115', borderColor: '#10B981' }]}>
+                <ThemedText style={[styles.filterText, { color: '#10B981', fontFamily: Fonts.semiBold }]}>Dept: {selectedDeptFilter}</ThemedText>
+                <TouchableOpacity onPress={() => setSelectedDeptFilter('All')}>
+                  <Ionicons name="close-circle" size={16} color="#10B981" />
+                </TouchableOpacity>
+              </View>
+            )}
+            {selectedSemFilter !== 'All' && (
+              <View style={[styles.filterChip, { backgroundColor: '#F59E0B15', borderColor: '#F59E0B' }]}>
+                <ThemedText style={[styles.filterText, { color: '#F59E0B', fontFamily: Fonts.semiBold }]}>Sem: {selectedSemFilter}</ThemedText>
+                <TouchableOpacity onPress={() => setSelectedSemFilter('All')}>
+                  <Ionicons name="close-circle" size={16} color="#F59E0B" />
+                </TouchableOpacity>
+              </View>
+            )}
+            <TouchableOpacity onPress={() => { setSelectedDivFilter('All'); setSelectedDeptFilter('All'); setSelectedSemFilter('All'); setActiveFilter(null); }}>
+              <ThemedText style={{ fontSize: 12, color: '#EF4444', fontFamily: Fonts.semiBold, alignSelf: 'center', marginLeft: 4 }}>Clear All</ThemedText>
+            </TouchableOpacity>
+          </ScrollView>
         )}
       </View>
       
@@ -288,7 +424,7 @@ export default function StudentsScreen() {
                           </View>
                           <View>
                             <ThemedText style={[styles.subjectNameText, { fontFamily: Fonts.semiBold }]}>{sub.name}</ThemedText>
-                            <ThemedText style={[styles.teacherNameText, { color: themeColors.secondary }]}>{sub.teacherName || 'Not Assigned'}</ThemedText>
+                            <ThemedText style={[styles.teacherNameText, { color: themeColors.secondary }]}>{sub.teacher_name || sub.teacherName || 'Not Assigned'}</ThemedText>
                           </View>
                         </View>
                       ))}
@@ -421,6 +557,171 @@ export default function StudentsScreen() {
           )}
         </View>
       </AdminModal>
+
+      {/* Bulk CSV Import Modal */}
+      <AdminModal
+        visible={isBulkModalVisible}
+        onClose={() => setIsBulkModalVisible(false)}
+        title="Bulk Import Students (CSV)"
+      >
+        <View style={styles.formContainer}>
+          <ThemedText style={{ fontSize: 12, color: themeColors.secondary }}>
+            Paste Tab-separated or CSV text directly from Excel/Sheets (e.g. USN & Name).
+          </ThemedText>
+          
+          <TextInput
+            style={[
+              styles.formInput, 
+              { 
+                height: 140, 
+                backgroundColor: themeColors.background, 
+                color: themeColors.text, 
+                borderColor: themeColors.border, 
+                fontFamily: Fonts.mono,
+                textAlignVertical: 'top',
+                paddingTop: 10
+              }
+            ]}
+            placeholder={`e.g.\n2GI24CS001\tAAROH PRASHANT BALE\n2GI24CS002\tABHI SHYAM DASAR`}
+            placeholderTextColor={themeColors.secondary}
+            value={bulkCsvText}
+            onChangeText={setBulkCsvText}
+            multiline
+          />
+
+          <TouchableOpacity 
+            style={[styles.submitButton, { backgroundColor: themeColors.primary, opacity: bulkSubmitting ? 0.7 : 1 }]}
+            onPress={handleBulkImport}
+            disabled={bulkSubmitting}
+          >
+            {bulkSubmitting ? (
+              <ActivityIndicator color={colorScheme === 'dark' ? themeColors.background : '#FFFFFF'} />
+            ) : (
+              <ThemedText style={[styles.submitButtonText, { color: colorScheme === 'dark' ? themeColors.background : '#FFFFFF', fontFamily: Fonts.bold }]}>
+                Upload & Import Students
+              </ThemedText>
+            )}
+          </TouchableOpacity>
+        </View>
+      </AdminModal>
+
+      {/* Advanced Filter Modal */}
+      <AdminModal
+        visible={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        title="Filter Students"
+      >
+        <View style={{ gap: 16 }}>
+          {/* Department Filter */}
+          <View style={styles.inputField}>
+            <ThemedText style={[styles.inputLabel, { fontFamily: Fonts.semiBold }]}>Department</ThemedText>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', gap: 8 }}>
+              {['All', 'CSE', 'ECE', 'ME', 'CV', 'EEE'].map(dept => (
+                <TouchableOpacity
+                  key={dept}
+                  style={[
+                    styles.filterChipOption,
+                    {
+                      backgroundColor: selectedDeptFilter === dept ? themeColors.primary : themeColors.background,
+                      borderColor: selectedDeptFilter === dept ? themeColors.primary : themeColors.border,
+                    }
+                  ]}
+                  onPress={() => setSelectedDeptFilter(dept)}
+                >
+                  <ThemedText style={{ color: selectedDeptFilter === dept ? (colorScheme === 'dark' ? themeColors.background : '#FFFFFF') : themeColors.text, fontFamily: Fonts.semiBold, fontSize: 13 }}>
+                    {dept}
+                  </ThemedText>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Semester Filter */}
+          <View style={styles.inputField}>
+            <ThemedText style={[styles.inputLabel, { fontFamily: Fonts.semiBold }]}>Semester</ThemedText>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', gap: 8 }}>
+              {['All', '1', '2', '3', '4', '5', '6', '7', '8'].map(sem => (
+                <TouchableOpacity
+                  key={sem}
+                  style={[
+                    styles.filterChipOption,
+                    {
+                      backgroundColor: selectedSemFilter === sem ? themeColors.primary : themeColors.background,
+                      borderColor: selectedSemFilter === sem ? themeColors.primary : themeColors.border,
+                    }
+                  ]}
+                  onPress={() => setSelectedSemFilter(sem)}
+                >
+                  <ThemedText style={{ color: selectedSemFilter === sem ? (colorScheme === 'dark' ? themeColors.background : '#FFFFFF') : themeColors.text, fontFamily: Fonts.semiBold, fontSize: 13 }}>
+                    {sem === 'All' ? 'All Sem' : `Sem ${sem}`}
+                  </ThemedText>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Division Filter */}
+          <View style={styles.inputField}>
+            <ThemedText style={[styles.inputLabel, { fontFamily: Fonts.semiBold }]}>Division</ThemedText>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                style={[
+                  styles.filterChipOption,
+                  {
+                    backgroundColor: selectedDivFilter === 'All' ? themeColors.primary : themeColors.background,
+                    borderColor: selectedDivFilter === 'All' ? themeColors.primary : themeColors.border,
+                  }
+                ]}
+                onPress={() => setSelectedDivFilter('All')}
+              >
+                <ThemedText style={{ color: selectedDivFilter === 'All' ? (colorScheme === 'dark' ? themeColors.background : '#FFFFFF') : themeColors.text, fontFamily: Fonts.semiBold, fontSize: 13 }}>
+                  All Divisions
+                </ThemedText>
+              </TouchableOpacity>
+              {divisions.map(div => (
+                <TouchableOpacity
+                  key={div.id}
+                  style={[
+                    styles.filterChipOption,
+                    {
+                      backgroundColor: selectedDivFilter === div.id ? themeColors.primary : themeColors.background,
+                      borderColor: selectedDivFilter === div.id ? themeColors.primary : themeColors.border,
+                    }
+                  ]}
+                  onPress={() => setSelectedDivFilter(div.id)}
+                >
+                  <ThemedText style={{ color: selectedDivFilter === div.id ? (colorScheme === 'dark' ? themeColors.background : '#FFFFFF') : themeColors.text, fontFamily: Fonts.semiBold, fontSize: 13 }}>
+                    {div.name}
+                  </ThemedText>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Action Buttons */}
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+            <TouchableOpacity 
+              style={[styles.submitButton, { flex: 1, backgroundColor: themeColors.background, borderWidth: 1, borderColor: themeColors.border }]}
+              onPress={() => {
+                setSelectedDivFilter('All');
+                setSelectedDeptFilter('All');
+                setSelectedSemFilter('All');
+                setActiveFilter(null);
+              }}
+            >
+              <ThemedText style={{ fontFamily: Fonts.semiBold, color: themeColors.text }}>Reset Filters</ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.submitButton, { flex: 1, backgroundColor: themeColors.primary }]}
+              onPress={() => setIsFilterModalOpen(false)}
+            >
+              <ThemedText style={{ fontFamily: Fonts.bold, color: colorScheme === 'dark' ? themeColors.background : '#FFFFFF' }}>
+                Apply Filters ({filteredStudents.length})
+              </ThemedText>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </AdminModal>
     </ThemedView>
   );
 }
@@ -433,6 +734,9 @@ const styles = StyleSheet.create({
   bulkButton: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   bulkText: { fontSize: 13 },
   searchBar: { height: 44, borderRadius: 10, borderWidth: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 },
+  filterChipButton: { width: 44, height: 44, borderRadius: 10, borderWidth: 1, justifyContent: 'center', alignItems: 'center', position: 'relative' },
+  filterBadge: { position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: 9, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#10B981' },
+  filterChipOption: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   filterContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
   filterChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
   filterText: { fontSize: 12 },

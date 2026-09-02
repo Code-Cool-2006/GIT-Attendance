@@ -9,6 +9,7 @@ import { ThemedView } from '@/components/themed-view';
 import { AdminModal } from '@/components/admin-modal';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { API_BASE_URL } from '@/constants/Config';
 
 export default function TeachersScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -16,14 +17,15 @@ export default function TeachersScreen() {
   
   // State for search and filtering
   const [searchQuery, setSearchQuery] = useState('');
-  
+  const [selectedDeptFilter, setSelectedDeptFilter] = useState('All');
+
   // State for data management
   const [teachers, setTeachers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchTeachers = async () => {
     try {
-      const response = await fetch('/api/teachers');
+      const response = await fetch(`${API_BASE_URL}/teachers`);
       const data = await response.json();
       if (response.ok) {
         // Map API data to UI format if needed
@@ -31,9 +33,9 @@ export default function TeachersScreen() {
           id: t.id,
           name: t.name,
           dept: t.department || 'General',
-          idNo: t.employeeId,
+          idNo: t.employee_id || t.employeeId,
           email: t.email || '',
-          subjects: [] // Subjects might need another fetch or join
+          subjects: t.subjects || []
         }));
         setTeachers(mappedTeachers);
       }
@@ -79,9 +81,74 @@ export default function TeachersScreen() {
     setIsModalVisible(true);
   };
 
+  // State for Bulk CSV Modal
+  const [isBulkModalVisible, setIsBulkModalVisible] = useState(false);
+  const [bulkCsvText, setBulkCsvText] = useState('');
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+
+  const handleBulkImportTeachers = async () => {
+    if (!bulkCsvText.trim()) {
+      Alert.alert('Empty Input', 'Please paste teacher list before uploading.');
+      return;
+    }
+
+    const lines = bulkCsvText.trim().split('\n');
+    const teachersList: any[] = [];
+
+    lines.forEach((line, idx) => {
+      const delimiter = line.includes('\t') ? '\t' : ',';
+      const parts = line.split(delimiter).map(p => p.trim());
+      if (parts.length >= 1 && parts[0] !== '') {
+        // Skip header line
+        if (parts[0].toLowerCase().includes('employee') || parts[0].toLowerCase().includes('name')) {
+          return;
+        }
+        let empId = parts.length >= 2 ? parts[0] : `EMP${String(idx + 1).padStart(3, '0')}`;
+        let name = parts.length >= 2 ? parts[1] : parts[0];
+        let email = parts[2] || `${name.toLowerCase().replace(/[^a-z0-9]/g, '')}@git.edu`;
+        let dept = parts[3] || 'Computer Science & Engineering';
+
+        teachersList.push({ employeeId: empId, name, email, department: dept });
+      }
+    });
+
+    if (teachersList.length === 0) {
+      Alert.alert('Invalid Format', 'No valid teacher rows found.');
+      return;
+    }
+
+    setBulkSubmitting(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/teachers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teachersList }),
+      });
+
+      const resData = await response.json();
+      if (response.ok) {
+        Alert.alert('Success', `Successfully imported ${resData.insertedCount} out of ${resData.totalCount} teachers.`);
+        setBulkCsvText('');
+        setIsBulkModalVisible(false);
+        fetchTeachers();
+      } else {
+        Alert.alert('Error', resData.error || 'Failed to bulk import teachers.');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Failed to process bulk import.');
+    } finally {
+      setBulkSubmitting(false);
+    }
+  };
+
   const handleSaveTeacher = async () => {
     if (!form.name || !form.idNo || !form.dept) {
       Alert.alert('Missing Fields', 'Please fill in all required fields.');
+      return;
+    }
+
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address.');
       return;
     }
 
@@ -96,7 +163,7 @@ export default function TeachersScreen() {
         department: form.dept
       };
 
-      const response = await fetch('/api/teachers', {
+      const response = await fetch(`${API_BASE_URL}/teachers`, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -127,7 +194,7 @@ export default function TeachersScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              const response = await fetch(`/api/teachers?id=${id}`, { method: 'DELETE' });
+              const response = await fetch(`${API_BASE_URL}/teachers?id=${id}`, { method: 'DELETE' });
               if (response.ok) {
                 fetchTeachers();
               }
@@ -140,10 +207,13 @@ export default function TeachersScreen() {
     );
   };
 
-  const filteredTeachers = teachers.filter(t => 
-    t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    t.dept.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredTeachers = teachers.filter(t => {
+    const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         t.dept.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         t.idNo.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesDept = selectedDeptFilter !== 'All' ? t.dept.toLowerCase().includes(selectedDeptFilter.toLowerCase()) : true;
+    return matchesSearch && matchesDept;
+  });
 
   const renderTeacherCard = ({ item }: { item: typeof teachers[0] }) => (
     <View style={[styles.card, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}>
@@ -193,7 +263,16 @@ export default function TeachersScreen() {
       
       {/* Search Header */}
       <View style={[styles.header, { backgroundColor: themeColors.surface, borderBottomColor: themeColors.border }]}>
-        <ThemedText style={[styles.title, { fontFamily: Fonts.bold }]}>Teacher Management</ThemedText>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <ThemedText style={[styles.title, { fontFamily: Fonts.bold, marginBottom: 0 }]}>Teacher Management</ThemedText>
+          <TouchableOpacity 
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: themeColors.tertiary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}
+            onPress={() => setIsBulkModalVisible(true)}
+          >
+            <Ionicons name="cloud-upload-outline" size={16} color={themeColors.tertiary} />
+            <ThemedText style={{ color: themeColors.tertiary, fontFamily: Fonts.semiBold, fontSize: 13 }}>Bulk Import</ThemedText>
+          </TouchableOpacity>
+        </View>
         <View style={[styles.searchContainer, { backgroundColor: themeColors.background, borderColor: themeColors.border }]}>
           <Ionicons name="search" size={18} color={themeColors.secondary} />
           <TextInput
@@ -204,6 +283,32 @@ export default function TeachersScreen() {
             onChangeText={setSearchQuery}
           />
         </View>
+
+        {/* Department Filter Chips */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+          {['All', 'Computer Science', 'Electronics', 'Mechanical', 'Civil', 'General'].map(dept => (
+            <TouchableOpacity
+              key={dept}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: 16,
+                borderWidth: 1,
+                backgroundColor: selectedDeptFilter === dept ? themeColors.primary : themeColors.background,
+                borderColor: selectedDeptFilter === dept ? themeColors.primary : themeColors.border,
+              }}
+              onPress={() => setSelectedDeptFilter(dept)}
+            >
+              <ThemedText style={{ 
+                fontSize: 12, 
+                fontFamily: Fonts.semiBold, 
+                color: selectedDeptFilter === dept ? (colorScheme === 'dark' ? themeColors.background : '#FFFFFF') : themeColors.text 
+              }}>
+                {dept}
+              </ThemedText>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
       {loading ? (
@@ -304,6 +409,53 @@ export default function TeachersScreen() {
             ) : (
               <ThemedText style={[styles.submitButtonText, { color: colorScheme === 'dark' ? themeColors.background : '#FFFFFF', fontFamily: Fonts.bold }]}>
                 {editingTeacher ? "Update Faculty Member" : "Add Faculty Member"}
+              </ThemedText>
+            )}
+          </TouchableOpacity>
+        </View>
+      </AdminModal>
+
+      {/* Bulk Teachers Import Modal */}
+      <AdminModal
+        visible={isBulkModalVisible}
+        onClose={() => setIsBulkModalVisible(false)}
+        title="Bulk Import Faculty (CSV / Tab)"
+      >
+        <View style={styles.formContainer}>
+          <ThemedText style={{ fontSize: 12, color: themeColors.secondary }}>
+            Paste Tab-separated or CSV list of professors (e.g. Employee ID, Name, Email, Dept).
+          </ThemedText>
+          
+          <TextInput
+            style={[
+              styles.formInput, 
+              { 
+                height: 140, 
+                backgroundColor: themeColors.background, 
+                color: themeColors.text, 
+                borderColor: themeColors.border, 
+                fontFamily: Fonts.mono,
+                textAlignVertical: 'top',
+                paddingTop: 10
+              }
+            ]}
+            placeholder={`e.g.\nEMP001\tDr. Rudragoud S.Patil\nEMP002\tDr. Vijay S. Rajpurohit`}
+            placeholderTextColor={themeColors.secondary}
+            value={bulkCsvText}
+            onChangeText={setBulkCsvText}
+            multiline
+          />
+
+          <TouchableOpacity 
+            style={[styles.submitButton, { backgroundColor: themeColors.primary, opacity: bulkSubmitting ? 0.7 : 1 }]}
+            onPress={handleBulkImportTeachers}
+            disabled={bulkSubmitting}
+          >
+            {bulkSubmitting ? (
+              <ActivityIndicator color={colorScheme === 'dark' ? themeColors.background : '#FFFFFF'} />
+            ) : (
+              <ThemedText style={[styles.submitButtonText, { color: colorScheme === 'dark' ? themeColors.background : '#FFFFFF', fontFamily: Fonts.bold }]}>
+                Upload & Import Faculty
               </ThemedText>
             )}
           </TouchableOpacity>

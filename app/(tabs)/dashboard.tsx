@@ -1,13 +1,19 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Image } from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator, Image, Alert, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
+import { clearAuthState } from '@/utils/auth-storage';
 
+import { AdminModal } from '@/components/admin-modal';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+
+import { API_BASE_URL } from '@/constants/Config';
+import { addLog, exportLogs } from '@/utils/logger';
 
 const LOGO = require('@/assets/images/GIT_Connect_admin_logo.png');
 
@@ -16,39 +22,119 @@ const { width } = Dimensions.get('window');
 export default function DashboardScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const themeColors = Colors[colorScheme];
+  const router = useRouter();
   
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>({
     students: '0',
     teachers: '0',
     divisions: '0',
+    activeYear: 'None',
     attendanceToday: '0%',
     activities: []
   });
 
+  const [isAyModalVisible, setIsAyModalVisible] = useState(false);
+  const [academicYears, setAcademicYears] = useState<any[]>([]);
+  const [newAyYear, setNewAyYear] = useState('');
+  const [aySubmitting, setAySubmitting] = useState(false);
+
+  const handleLogout = () => {
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel' },
+      { 
+        text: 'Logout', 
+        onPress: async () => {
+          await clearAuthState();
+          router.replace('/login');
+        } 
+      }
+    ]);
+  };
+
+  const fetchAcademicYears = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/academic-years`);
+      if (res.ok) {
+        const list = await res.json();
+        setAcademicYears(list);
+      }
+    } catch (e) {
+      console.error('Error fetching AY:', e);
+    }
+  };
+
   const fetchStats = async () => {
     try {
-      const response = await fetch('/api/stats');
+      const response = await fetch(`${API_BASE_URL}/stats`);
       const stats = await response.json();
+      addLog(`[Dashboard] Stats response: ${JSON.stringify(stats)}`);
       if (response.ok) {
         setData({
           students: stats.students.toString(),
           teachers: stats.teachers.toString(),
           divisions: stats.divisions.toString(),
+          activeYear: stats.activeYear || 'None Set',
           attendanceToday: stats.attendanceToday,
           activities: stats.activities || []
         });
+      } else {
+        addLog(`[Dashboard] Failed to fetch stats. Status: ${response.status}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching stats:', error);
+      addLog(`[Dashboard] Fetch error: ${error?.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateAY = async () => {
+    if (!newAyYear.trim()) {
+      Alert.alert('Required', 'Please enter Academic Year format (e.g. 2024-25)');
+      return;
+    }
+    setAySubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/academic-years`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year: newAyYear, isActive: true }),
+      });
+      if (res.ok) {
+        setNewAyYear('');
+        fetchAcademicYears();
+        fetchStats();
+      } else {
+        Alert.alert('Error', 'Failed to create academic year.');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'An error occurred while creating academic year.');
+    } finally {
+      setAySubmitting(false);
+    }
+  };
+
+  const handleSetActiveAY = async (id: string) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/academic-years`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, isActive: true }),
+      });
+      if (res.ok) {
+        fetchAcademicYears();
+        fetchStats();
+      }
+    } catch (e) {
+      console.error('Error setting active AY:', e);
     }
   };
 
   useFocusEffect(
     useCallback(() => {
       fetchStats();
+      fetchAcademicYears();
     }, [])
   );
 
@@ -56,7 +142,7 @@ export default function DashboardScreen() {
     { label: 'Total Students', value: data.students, icon: 'people', color: themeColors.tertiary },
     { label: 'Total Teachers', value: data.teachers, icon: 'school', color: '#10B981' },
     { label: 'Active Divisions', value: data.divisions, icon: 'layers', color: '#F59E0B' },
-    { label: 'Today\'s Attendance', value: data.attendanceToday, icon: 'checkmark-circle', color: themeColors.primary },
+    { label: 'Academic Year', value: data.activeYear, icon: 'calendar', color: themeColors.primary },
   ];
 
   const recentActivities = data.activities.length > 0 ? data.activities : [
@@ -77,9 +163,14 @@ export default function DashboardScreen() {
             <ThemedText style={[styles.adminName, { fontFamily: Fonts.bold }]}>Administrator</ThemedText>
           </View>
         </View>
-        <TouchableOpacity style={[styles.profileButton, { backgroundColor: themeColors.background }]}>
-          <Ionicons name="notifications-outline" size={24} color={themeColors.text} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <TouchableOpacity 
+            style={[styles.logoutButton, { backgroundColor: themeColors.surface, borderColor: themeColors.border }]}
+            onPress={handleLogout}
+          >
+            <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -111,15 +202,19 @@ export default function DashboardScreen() {
         {/* Quick Actions */}
         <ThemedText style={[styles.sectionTitle, { fontFamily: Fonts.semiBold }]}>Quick Actions</ThemedText>
         <View style={styles.actionGrid}>
-          <TouchableOpacity style={[styles.actionButton, { backgroundColor: themeColors.primary }]}>
-            <Ionicons name="add-circle" size={20} color={colorScheme === 'dark' ? themeColors.background : '#FFFFFF'} />
+          <TouchableOpacity 
+            style={[styles.actionButton, { backgroundColor: themeColors.primary }]}
+            onPress={() => setIsAyModalVisible(true)}
+          >
+            <Ionicons name="calendar-outline" size={20} color={colorScheme === 'dark' ? themeColors.background : '#FFFFFF'} />
             <ThemedText style={[styles.actionButtonText, { color: colorScheme === 'dark' ? themeColors.background : '#FFFFFF', fontFamily: Fonts.semiBold }]}>
-              Mark Attendance
+              Academic Years
             </ThemedText>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionButtonSecondary, { borderColor: themeColors.primary }]}>
-            <ThemedText style={[styles.actionButtonTextSecondary, { color: themeColors.primary, fontFamily: Fonts.semiBold }]}>
-              Generate Report
+          <TouchableOpacity style={[styles.actionButtonSecondary, { borderColor: themeColors.primary }]} onPress={exportLogs}>
+            <Ionicons name="download-outline" size={20} color={themeColors.primary} />
+            <ThemedText style={[styles.actionButtonTextSecondary, { color: themeColors.primary, fontFamily: Fonts.semiBold, marginLeft: 8 }]}>
+              Export Logs
             </ThemedText>
           </TouchableOpacity>
         </View>
@@ -163,6 +258,81 @@ export default function DashboardScreen() {
           })}
         </View>
       </ScrollView>
+
+      {/* Academic Year Management Modal */}
+      <AdminModal
+        visible={isAyModalVisible}
+        onClose={() => setIsAyModalVisible(false)}
+        title="Manage Academic Years"
+      >
+        <View style={{ gap: 16 }}>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TextInput
+              style={{
+                flex: 1,
+                height: 48,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: themeColors.border,
+                backgroundColor: themeColors.background,
+                color: themeColors.text,
+                paddingHorizontal: 12,
+                fontFamily: Fonts.sans
+              }}
+              placeholder="e.g. 2024-25"
+              placeholderTextColor={themeColors.secondary}
+              value={newAyYear}
+              onChangeText={setNewAyYear}
+            />
+            <TouchableOpacity
+              style={{
+                height: 48,
+                paddingHorizontal: 16,
+                backgroundColor: themeColors.primary,
+                borderRadius: 10,
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}
+              onPress={handleCreateAY}
+              disabled={aySubmitting}
+            >
+              <ThemedText style={{ color: colorScheme === 'dark' ? themeColors.background : '#FFFFFF', fontFamily: Fonts.bold }}>Add & Set Active</ThemedText>
+            </TouchableOpacity>
+          </View>
+
+          <ThemedText style={{ fontFamily: Fonts.semiBold, marginTop: 8 }}>Existing Academic Years:</ThemedText>
+          {academicYears.length === 0 ? (
+            <ThemedText style={{ color: themeColors.secondary, fontStyle: 'italic' }}>No academic years defined yet.</ThemedText>
+          ) : (
+            academicYears.map((ay) => (
+              <TouchableOpacity
+                key={ay.id}
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: 12,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: ay.isActive ? themeColors.primary : themeColors.border,
+                  backgroundColor: ay.isActive ? themeColors.primary + '10' : themeColors.surface
+                }}
+                onPress={() => handleSetActiveAY(ay.id)}
+              >
+                <ThemedText style={{ fontFamily: Fonts.semiBold }}>{ay.year}</ThemedText>
+                {ay.isActive ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Ionicons name="checkmark-circle" size={18} color={themeColors.primary} />
+                    <ThemedText style={{ color: themeColors.primary, fontFamily: Fonts.semiBold, fontSize: 12 }}>Active</ThemedText>
+                  </View>
+                ) : (
+                  <ThemedText style={{ color: themeColors.secondary, fontSize: 12 }}>Set Active</ThemedText>
+                )}
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+      </AdminModal>
     </ThemedView>
   );
 }
@@ -196,10 +366,11 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 10,
   },
-  profileButton: {
+  logoutButton: {
     width: 44,
     height: 44,
     borderRadius: 12,
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },

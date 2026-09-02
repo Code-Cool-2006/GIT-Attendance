@@ -1,17 +1,16 @@
-import { ExpoRequest, ExpoResponse } from 'expo-router/server';
-import { db } from '../../../db';
-import { academicYears } from '../../../db/schema';
+import { db } from '@/db/index';
+import { academicYears } from '@/db/schema';
 
-export async function GET(request: ExpoRequest) {
+export async function GET(request: Request) {
   try {
     const years = await db.select().from(academicYears);
-    return ExpoResponse.json({ 
+    return Response.json({ 
       status: 'ok', 
       database: 'connected',
       data: years 
     });
   } catch (error: any) {
-    return ExpoResponse.json({ 
+    return Response.json({ 
       status: 'error', 
       message: error.message 
     }, { status: 500 });

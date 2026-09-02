@@ -9,6 +9,8 @@ import { ThemedView } from '@/components/themed-view';
 import { AdminModal } from '@/components/admin-modal';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { API_BASE_URL } from '@/constants/Config';
+import { addLog } from '@/utils/logger';
 
 export default function SubjectsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -23,9 +25,9 @@ export default function SubjectsScreen() {
   const fetchInitialData = async () => {
     try {
       const [subsRes, divsRes, teachRes] = await Promise.all([
-        fetch('/api/subjects'),
-        fetch('/api/divisions'),
-        fetch('/api/teachers')
+        fetch(`${API_BASE_URL}/subjects`),
+        fetch(`${API_BASE_URL}/divisions`),
+        fetch(`${API_BASE_URL}/teachers`)
       ]);
       
       const subsData = await subsRes.json();
@@ -35,8 +37,9 @@ export default function SubjectsScreen() {
       if (subsRes.ok) setSubjects(subsData);
       if (divsRes.ok) setDivisions(divsData);
       if (teachRes.ok) setTeachers(teachData);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching subjects initial data:', error);
+      addLog(`[Subjects] Initial data fetch error: ${error?.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -73,8 +76,8 @@ export default function SubjectsScreen() {
         code: subject.code,
         divisionId: subject.divisionId,
         teacherId: subject.teacherId || '',
-        divisionName: subject.divisionName,
-        teacherName: subject.teacherName || '',
+        divisionName: subject.division_name || subject.divisionName || '',
+        teacherName: subject.teacher_name || subject.teacherName || '',
       });
     } else {
       setEditingSubject(null);
@@ -100,7 +103,7 @@ export default function SubjectsScreen() {
         teacherId: form.teacherId || null,
       };
 
-      const response = await fetch('/api/subjects', {
+      const response = await fetch(`${API_BASE_URL}/subjects`, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -112,9 +115,11 @@ export default function SubjectsScreen() {
       } else {
         const error = await response.json();
         Alert.alert('Error', error.error || 'Failed to save subject');
+        addLog(`[Subjects] Failed to save subject. Status: ${response.status}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       Alert.alert('Error', 'An error occurred.');
+      addLog(`[Subjects] Save error: ${error?.message || 'Unknown error'}`);
     } finally {
       setSubmitting(false);
     }
@@ -124,7 +129,7 @@ export default function SubjectsScreen() {
     Alert.alert('Delete Subject', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
-          await fetch(`/api/subjects?id=${id}`, { method: 'DELETE' });
+          await fetch(`${API_BASE_URL}/subjects?id=${id}`, { method: 'DELETE' });
           fetchInitialData();
       }}
     ]);
@@ -143,11 +148,11 @@ export default function SubjectsScreen() {
         <View style={styles.metaRow}>
           <View style={styles.metaItem}>
             <Ionicons name="layers-outline" size={14} color={themeColors.secondary} />
-            <ThemedText style={[styles.metaText, { color: themeColors.secondary }]}>{item.divisionName}</ThemedText>
+            <ThemedText style={[styles.metaText, { color: themeColors.secondary }]}>{item.division_name || item.divisionName || 'No Division'}</ThemedText>
           </View>
           <View style={styles.metaItem}>
             <Ionicons name="school-outline" size={14} color={themeColors.secondary} />
-            <ThemedText style={[styles.metaText, { color: themeColors.secondary }]}>{item.teacherName || 'Not Assigned'}</ThemedText>
+            <ThemedText style={[styles.metaText, { color: themeColors.secondary }]}>{item.teacher_name || item.teacherName || 'Not Assigned'}</ThemedText>
           </View>
         </View>
       </View>
@@ -179,7 +184,7 @@ export default function SubjectsScreen() {
 
   const fetchSchedules = async (subjectId: string) => {
     try {
-      const res = await fetch(`/api/schedules?subjectId=${subjectId}`);
+      const res = await fetch(`${API_BASE_URL}/schedules?subjectId=${subjectId}`);
       if (res.ok) {
         const data = await res.json();
         setCurrentSubjectSchedules(data);
@@ -198,12 +203,15 @@ export default function SubjectsScreen() {
   const handleAddSchedule = async () => {
     if (!scheduleForm.startTime || !scheduleForm.endTime) return;
     try {
-      const res = await fetch('/api/schedules', {
+      const res = await fetch(`${API_BASE_URL}/schedules`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           subjectId: selectedSubject.id,
-          ...scheduleForm
+          dayOfWeek: scheduleForm.dayOfWeek,
+          startTime: scheduleForm.startTime,
+          endTime: scheduleForm.endTime,
+          room: scheduleForm.room
         })
       });
       if (res.ok) {
@@ -218,7 +226,7 @@ export default function SubjectsScreen() {
 
   const handleDeleteSchedule = async (id: string) => {
     try {
-      await fetch(`/api/schedules?id=${id}`, { method: 'DELETE' });
+      await fetch(`${API_BASE_URL}/schedules?id=${id}`, { method: 'DELETE' });
       fetchSchedules(selectedSubject.id);
     } catch (error) {
       Alert.alert('Error', 'Failed to delete schedule');
@@ -336,8 +344,8 @@ export default function SubjectsScreen() {
           {currentSubjectSchedules.map(sch => (
             <View key={sch.id} style={[styles.scheduleItem, { backgroundColor: themeColors.background, borderColor: themeColors.border }]}>
               <View style={{ flex: 1 }}>
-                <ThemedText style={{ fontFamily: Fonts.bold }}>{sch.dayOfWeek}</ThemedText>
-                <ThemedText style={{ fontSize: 13, color: themeColors.secondary }}>{sch.startTime} - {sch.endTime}</ThemedText>
+                <ThemedText style={{ fontFamily: Fonts.bold }}>{sch.day_of_week || sch.dayOfWeek}</ThemedText>
+                <ThemedText style={{ fontSize: 13, color: themeColors.secondary }}>{sch.start_time || sch.startTime} - {sch.end_time || sch.endTime}</ThemedText>
                 {sch.room && <ThemedText style={{ fontSize: 12, opacity: 0.7 }}>Room: {sch.room}</ThemedText>}
               </View>
               <TouchableOpacity onPress={() => handleDeleteSchedule(sch.id)}>

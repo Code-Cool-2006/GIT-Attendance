@@ -1,5 +1,5 @@
 import { db } from '@/db/index';
-import { students, divisionStudents, divisions } from '@/db/schema';
+import { students, divisionStudents, divisions, attendance } from '@/db/schema';
 import { eq, desc, sql } from 'drizzle-orm';
 
 export async function GET() {
@@ -32,6 +32,43 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+
+    // Support bulk student list insertion if studentsList is provided
+    if (Array.isArray(body.studentsList)) {
+      let insertedCount = 0;
+      const errors: string[] = [];
+      for (const item of body.studentsList) {
+        const { name, rollNumber, email, phone, department, semester, divisionId } = item;
+        if (!name || !rollNumber) continue;
+        try {
+          const [student] = await db.insert(students).values({
+            name: name.trim(),
+            rollNumber: rollNumber.trim(),
+            email: email && email.trim() !== '' ? email.trim() : null,
+            phone: phone && phone.trim() !== '' ? phone.trim() : null,
+            department: department ? department.trim() : null,
+            semester: semester ? parseInt(semester) : null,
+          }).returning();
+
+          if (divisionId && divisionId !== '' && divisionId !== 'null' && divisionId !== 'Unassigned') {
+            await db.insert(divisionStudents).values({
+              studentId: student.id,
+              divisionId: divisionId,
+            });
+          }
+          insertedCount++;
+        } catch (err: any) {
+          errors.push(`Failed to insert ${rollNumber}: ${err.message}`);
+        }
+      }
+      return Response.json({
+        success: true,
+        insertedCount,
+        totalCount: body.studentsList.length,
+        errors: errors.length > 0 ? errors : undefined,
+      });
+    }
+
     const { name, rollNumber, email, phone, department, semester, divisionId } = body;
 
     if (!name || !rollNumber) {
@@ -130,6 +167,7 @@ export async function DELETE(request: Request) {
       return Response.json({ error: 'ID is required' }, { status: 400 });
     }
 
+    await db.delete(attendance).where(eq(attendance.studentId, id));
     await db.delete(divisionStudents).where(eq(divisionStudents.studentId, id));
     await db.delete(students).where(eq(students.id, id));
     

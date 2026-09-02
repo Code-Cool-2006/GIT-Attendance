@@ -15,7 +15,8 @@
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/GIT_Connect_admin_logo.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.GITConnectAdmin"
     },
     "web": {
       "output": "server",
@@ -39,6 +40,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ea048e61-e58d-4d0c-bd6b-c56ceee92d2e"
+      }
     }
   }
 }

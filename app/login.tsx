@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, TextInput, TouchableOpacity, View, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
 import { router } from 'expo-router';
+import { saveAuthState } from '@/utils/auth-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 
@@ -8,6 +9,9 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors, Fonts } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+
+import { API_BASE_URL } from '@/constants/Config';
+import { addLog } from '@/utils/logger';
 
 const LOGO = require('@/assets/images/GIT_Connect_admin_logo.png');
 
@@ -30,7 +34,7 @@ export default function LoginScreen() {
     setError(null);
 
     try {
-      const response = await fetch('/api/login', {
+      const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -39,12 +43,15 @@ export default function LoginScreen() {
       const data = await response.json();
 
       if (response.ok) {
-        router.replace('/(tabs)');
+        await saveAuthState(true);
+        router.replace('/(tabs)/dashboard');
       } else {
         setError(data.error || 'Login failed');
+        addLog(`[Auth] Login failed. Status: ${response.status}`);
       }
-    } catch (err) {
+    } catch (err: any) {
       setError('An error occurred. Please try again.');
+      addLog(`[Auth] Login error: ${err?.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
